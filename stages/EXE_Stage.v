@@ -21,7 +21,7 @@ module EXE_Stage (
     mux3 #(32) Val1_mux(Val_Rn, ALU_result_mem, WB_Value, src1_sel, Val1);
     mux3 #(32) Val2_mux(Val_Rm, ALU_result_mem, WB_Value, src2_sel, Val2_RM_fW);
 
-    alu ALU(.in1(Val1), .in2(Val2), .c_in(SR[1]), .EXE_CMD(EXE_CMD), .result(ALU_result), .status_bits(status));
+    alu ALU(.in1(Val1), .in2(Val2), .c_in(SR[2]), .EXE_CMD(EXE_CMD), .result(ALU_result), .status_bits(status));
     adder ADDER(.a(PC), .b({{{8{Signed_imm_24[23]}}, Signed_imm_24}<<2}), .y(Br_addr));
     val2_Generator Val2_Gen(.val_Rm(Val2_RM_fW), .imm(imm), .shift_operand(Shift_operand), .mem_access(mem_access), .val2(Val2));
     
