@@ -1,13 +1,14 @@
 module SRAM_CT(
-    input clk, rst,
-    input w_en,
-    input rd_en,
-    input[31:0] address,
-    input[31:0] writeData,
+    input clk_i, rst_i,
+    input w_en_i,
+    input rd_en_i,
+    input[31:0] address_i,
+    input[31:0] write_data_i,
 
 
-    output[31:0] readData,
-    output reg ready,
+    output [31:0] read_data_o,
+    output reg read_data_valid_o,
+    output reg busy_o,
 
     inout [15:0] SRAM_DQ,
     output reg[17:0] SRAM_ADDR,
@@ -19,7 +20,7 @@ module SRAM_CT(
 
 
 );
-    localparam STATE_IDLE = 0, STATE_ACCESS_LOW = 1, STATE_ACCESS_HIGH = 2, STATE_READ_LOW = 3, STATE_NOP1 = 4, STATE_NOP2 = 5;
+    localparam STATE_IDLE = 0, STATE_RQ0LOW_W0LOW = 1, STATE_RQ0HIGH_W0HIGH = 2, STATE_RQ1LOW_W1LOW = 3, STATE_RQ1HIGH_W1HIGH = 4, STATE_RD1HIGH = 5;
     reg[2:0] ps, ns;
 
 
@@ -27,38 +28,34 @@ module SRAM_CT(
     reg read_store, secondAccess, writeDataAccess;
     wire memAccess;
     wire[15:0] read_data_high, read_data_low, tri_in;
-    // wire[17:0] mux1_out;
+    integer i;
         
 
-    // required Datapath :
-    // adderP #(18) adder(.a(address[18:2]), .b(mux1_out), .y(SRAM_ADDR));
-    flopenr #(16) read_data_low_reg(.clk(clk), .rst(rst), .en(read_store), .d(read_data_high), .q(read_data_low));
-    flopenr #(16) read_data_high_reg(.clk(clk), .rst(rst), .en(read_store), .d(SRAM_DQ), .q(read_data_high));
+
+
+    flopenr #(16) read_data_low_reg(.clk(clk_i), .rst(rst_i), .en(read_store), .d(read_data_high), .q(read_data_low));
+    flopenr #(16) read_data_high_reg(.clk(clk_i), .rst(rst_i), .en(read_store), .d(SRAM_DQ), .q(read_data_high));
 
 
                     
-
-
-
-
 
     // controller :
 
     always @(*) begin
         case (ps)
             STATE_IDLE : begin
-                ns = memAccess ? STATE_ACCESS_LOW : STATE_IDLE;
+                ns = memAccess ? STATE_RQ0LOW_W0LOW : STATE_IDLE;
             end
 
-            STATE_ACCESS_LOW : ns = STATE_ACCESS_HIGH;
+            STATE_RQ0LOW_W0LOW : ns = STATE_RQ0HIGH_W0HIGH;
 
-            STATE_ACCESS_HIGH : ns = STATE_READ_LOW;
+            STATE_RQ0HIGH_W0HIGH : ns = STATE_RQ1LOW_W1LOW;
 
-            STATE_READ_LOW : ns = STATE_NOP1;
+            STATE_RQ1LOW_W1LOW : ns = STATE_RQ1HIGH_W1HIGH;
 
-            STATE_NOP1 : ns  = STATE_NOP2;
+            STATE_RQ1HIGH_W1HIGH : ns  = STATE_RD1HIGH;
 
-            STATE_NOP2 : ns = STATE_IDLE;
+            STATE_RD1HIGH : ns = STATE_IDLE;
 
         endcase
     end
@@ -67,51 +64,64 @@ module SRAM_CT(
         {secondAccess, read_store, writeDataAccess} = 0;
         SRAM_WE_N = 2'b11;
         SRAM_ADDR = 18'bZ;
+        
+        read_data_valid_o = 0;
+        busy_o = 1'b1;
 
         case(ps)
             STATE_IDLE : begin
-                ready = ~memAccess;
+                busy_o = 1'b0;
             end
 
-            STATE_ACCESS_LOW: begin
+            STATE_RQ0LOW_W0LOW: begin
                 secondAccess = 1'b0;
-                SRAM_WE_N = ~w_en;
-                // read_store = ~w_en;
-                writeDataAccess = w_en;
+                SRAM_WE_N = ~w_en_i;
+                writeDataAccess = w_en_i;
 
-                SRAM_ADDR = {address[18:2], secondAccess};
+                SRAM_ADDR = {address_i[18:3], 1'b0, secondAccess};
             end
 
-            STATE_ACCESS_HIGH: begin
+            STATE_RQ0HIGH_W0HIGH: begin
                 secondAccess = 1'b1;
-                read_store = ~w_en;
-                SRAM_WE_N = ~w_en;
-                writeDataAccess = w_en;
+                read_store = ~w_en_i;
+                SRAM_WE_N = ~w_en_i;
+                writeDataAccess = w_en_i;
 
-                SRAM_ADDR = {address[18:2], secondAccess};
+                SRAM_ADDR = {address_i[18:3], 1'b0, secondAccess};
 
             end
 
-            STATE_READ_LOW: begin
+            STATE_RQ1LOW_W1LOW: begin
+                secondAccess = 1'b0;
                 SRAM_WE_N = 1'b1;
-                read_store = ~w_en;
+                read_store = ~w_en_i;
+                writeDataAccess = w_en_i;
+
+                SRAM_ADDR = {address_i[18:3], 1'b1, secondAccess};
+                read_data_valid_o = 1'b1;
             end
 
-            STATE_NOP1 : begin
+            STATE_RQ1HIGH_W1HIGH : begin
+                secondAccess = 1'b1;
                 SRAM_WE_N = 1'b1;
+                read_store = ~w_en_i;
+                writeDataAccess = w_en_i;
+
+                SRAM_ADDR = {address_i[18:3], 1'b1, secondAccess};
+                
             end
 
-            STATE_NOP2 : begin
+            STATE_RD1HIGH : begin
                 SRAM_WE_N = 1'b1;
-                ready = 1'b1;
+                read_data_valid_o = 1'b1;
             end
 
         endcase
     end
 
 
-    always @(posedge clk, posedge rst) begin
-        if(rst)
+    always @(posedge clk_i, posedge rst_i) begin
+        if(rst_i)
             ps <= STATE_IDLE;
         else
             ps <= ns;
@@ -120,14 +130,11 @@ module SRAM_CT(
 
     
 
-    // assign mux1_out = {{17{1'b0}}, secondAccess};
-    // assign SRAM_ADDR = {address[18:2], secondAccess};
-    assign tri_in = secondAccess ? writeData[31:16] : writeData[15:0];
+    assign tri_in = secondAccess ? write_data_i[31:16] : write_data_i[15:0];
 
     assign SRAM_DQ = writeDataAccess ? tri_in : 16'bz;      // tri-state gate
-    assign readData = {read_data_high, read_data_low};
     assign {SRAM_OE_N, SRAM_UB_N, SRAM_LB_N, SRAM_CE_N} = 4'b0000;
-    assign memAccess = rd_en | w_en;
+    assign memAccess = rd_en_i | w_en_i;
 
 
 

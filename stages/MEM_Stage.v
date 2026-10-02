@@ -13,29 +13,54 @@ module MEM_Stage (
     output  SRAM_OE_N
 );
     wire ready;
-    // wire [15:0] SRAM_DQ;
-    // wire [17:0] SRAM_ADDR;
-    // wire SRAM_UB_N;
-    // wire SRAM_LB_N;
-    // wire SRAM_WE_N;
-    // wire SRAM_CE_N;
-    // wire SRAM_OE_N;
+    wire [31:0] sram_read_data;
+    wire        sram_data_valid;
+    wire        sram_busy;
+    wire [31:0] sram_write_data;
+    wire        sram_w_en;
+    wire        sram_rd_en;
 
-    SRAM_CT sram_ct(.clk(clk), .rst(rst), .w_en(MEM_w_en), .rd_en(MEM_r_en),
-                .address(ALU_result), .readData(MEM_result), .writeData(Val_Rm),
-                .ready(ready), .SRAM_DQ(SRAM_DQ), .SRAM_ADDR(SRAM_ADDR), .SRAM_UB_N(SRAM_UB_N), 
-                .SRAM_LB_N(SRAM_LB_N), .SRAM_WE_N(SRAM_WE_N), .SRAM_CE_N(SRAM_CE_N), 
-                .SRAM_OE_N(SRAM_OE_N)
-                );
+    CACHE cache (
+        .clk_i(clk),
+        .rst_i(rst),
+        .w_en_i(MEM_w_en),
+        .rd_en_i(MEM_r_en),
+        .address(ALU_result),
+        .write_data_i(Val_Rm),
+        .read_data_o(MEM_result),
+        .sram_busy_i(sram_busy),
+        .sram_read_data_i(sram_read_data),
+        .sram_data_valid_i(sram_data_valid),
+        .sram_write_data_o(sram_write_data),
+        .sram_w_en_o(sram_w_en),
+        .sram_rd_en_o(sram_rd_en),
+        .cache_ready_o(ready)
+    );
+
+    SRAM_CT sram_ct (
+        .clk_i(clk),
+        .rst_i(rst),
+        .w_en_i(sram_w_en),
+        .rd_en_i(sram_rd_en),
+        .address_i(ALU_result),
+        .write_data_i(sram_write_data),
+        .read_data_o(sram_read_data),
+        .read_data_valid_o(sram_data_valid),
+        .busy_o(sram_busy),
+        .SRAM_DQ(SRAM_DQ),
+        .SRAM_ADDR(SRAM_ADDR),
+        .SRAM_UB_N(SRAM_UB_N),
+        .SRAM_LB_N(SRAM_LB_N),
+        .SRAM_WE_N(SRAM_WE_N),
+        .SRAM_CE_N(SRAM_CE_N),
+        .SRAM_OE_N(SRAM_OE_N)
+    );
     
     
-    // data_memory data_mem(.clk(clk), .MEMread(MEM_r_en), .MEMwrite(MEM_w_en), .address(ALU_result), .data(Val_Rm), .MEM_result(MEM_result));
-    // SRAM_sim sram(.clk(clk), .rst(rst), .SRAM_DQ(SRAM_DQ), .SRAM_ADDR(SRAM_ADDR), .SRAM_UB_N(SRAM_UB_N), 
-    //             .SRAM_LB_N(SRAM_LB_N), .SRAM_WE_N(SRAM_WE_N), .SRAM_CE_N(SRAM_CE_N), 
-    //             .SRAM_OE_N(SRAM_OE_N));
+    
 
 
-    assign mem_freeze = ~ready;
+    assign mem_freeze = ~ready & (MEM_r_en | MEM_w_en);
 
     
 

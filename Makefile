@@ -28,7 +28,8 @@ SRC := \
 	primitives/val2_Generator.v \
 	primitives/memories/instruction_memory.v \
 	primitives/memories/SRAM_CT.v \
-	primitives/memories/sram_sim.v
+	primitives/memories/sram_sim.v \
+	primitives/memories/cache.v
 
 .PHONY: all run clean
 
